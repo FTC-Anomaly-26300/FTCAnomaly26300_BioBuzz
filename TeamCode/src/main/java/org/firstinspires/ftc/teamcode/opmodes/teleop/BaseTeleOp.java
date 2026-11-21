@@ -85,7 +85,13 @@ public abstract class BaseTeleOp extends LinearOpMode {
     private static final double POWER_TOLERANCE = 0.01;
 
     public void initHardware() {
-        robotHardware = new Hardware(hardwareMap);
+        initHardware(true);
+    }
+
+    // usePinpoint false skips the Pinpoint, for OpModes that don't need the robot's position
+    // or heading (RobotCentric). pinpoint is null then.
+    public void initHardware(boolean usePinpoint) {
+        robotHardware = new Hardware(hardwareMap, usePinpoint);
         intake = robotHardware.robotIntake;
         shooter = robotHardware.robotShooter;
         transfer = robotHardware.robotTransfer;
@@ -95,6 +101,7 @@ public abstract class BaseTeleOp extends LinearOpMode {
 
     public void updateInputs() {
         controller1.readButtons();
+        if (pinpoint == null) return; // started without the Pinpoint, so there's no position to read
         // Press BACK with the robot pushed into the relocalize corner to reset the position and
         // heading completely. This fixes both field centric driving and the auto-aim.
         if (controller1.wasJustPressed(GamepadKeys.Button.BACK)) {
@@ -111,29 +118,121 @@ public abstract class BaseTeleOp extends LinearOpMode {
     }
 
     // ===== Controls =====
-    // All the driver buttons are here, so changing a control only means changing it in one place.
-    // The left stick drives, and is read in each TeleOp.
+    // The driver's buttons, shared by the TeleOps, so changing a control only means changing it
+    // in one place. The sticks are read in each TeleOp.
+    //   Left stick       drive
+    //   Right stick      turn
+    //   Square (X)       close shot speed, press again to stop
+    //   Triangle (Y)     middle shot speed, press again to stop
+    //   Circle (B)       hold for auto shoot. Turns to our CELL, picks the speed for the distance,
+    //                    and feeds by itself once it's aimed and up to speed. Let go to stop.
+    //   Right bumper     indexer servos, push POLLEN into the shooter
+    //   Left trigger     intake and indexer motor in
+    //   Left bumper      intake and indexer motor in reverse
+    //   BACK             relocalize, with the robot pushed into the corner
 
-    // Turning from the triggers. Right trigger turns right, left trigger turns left,
-    // and pressing harder turns faster.
-    protected double triggerTurn() {
-        return controller1.getTrigger(GamepadKeys.Trigger.RIGHT_TRIGGER)
-                - controller1.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER);
+    // How far the left trigger has to be pressed to count (0.05 = barely touched)
+    private static final double TRIGGER_PRESSED = 0.05;
+
+    // The shooter speed picked with square or triangle, 0 means off
+    private double shooterButtonRpm = 0;
+    private String shooterButtonName = "OFF";
+
+    // True while circle is held and auto shoot is running
+    protected boolean autoShooting = false;
+
+    // True while circle is held. Auto shoot needs to know where the robot is, so it only works
+    // when the OpMode started with the Pinpoint.
+    protected boolean autoShootHeld() {
+        return controller1.getButton(GamepadKeys.Button.B) && pinpoint != null;
     }
 
-    // Hold the right bumper to aim, spin up, and shoot
-    protected boolean shootHeld() {
-        return controller1.getButton(GamepadKeys.Button.RIGHT_BUMPER);
-    }
+    // Runs the shooter, intake, indexer and servos from the driver's buttons, for one loop.
+    // Pass in autoShootHeld() from the start of the loop. Returns the turn auto shoot wants
+    // while circle is held (use it as rx), and 0 otherwise.
+    protected double updateShooterControls(boolean autoShoot) {
+        if (controller1.wasJustPressed(GamepadKeys.Button.X)) {
+            pickShooterSpeed(Shooter.CLOSE_RPM, "close (square)");
+        }
+        if (controller1.wasJustPressed(GamepadKeys.Button.Y)) {
+            pickShooterSpeed(Shooter.MIDDLE_RPM, "middle (triangle)");
+        }
 
-    // Hold the left bumper for intake in, hold B for intake out
-    protected void updateIntake() {
-        if (controller1.getButton(GamepadKeys.Button.LEFT_BUMPER)) {
-            intake.in();
-        } else if (controller1.getButton(GamepadKeys.Button.B)) {
-            intake.out();
+        autoShooting = autoShoot;
+        if (autoShooting) {
+            // Auto shoot runs the shooter, indexer and servos, so only the intake follows the buttons
+            double turn = updateShooter(true);
+            updateIntakeFromButtons();
+            return turn;
+        }
+
+        // Not auto shooting, so the shooter goes back to whatever square or triangle picked
+        resetAim();
+        if (shooterButtonRpm > 0) {
+            shooter.setRpm(shooterButtonRpm);
         } else {
-            intake.stop();
+            shooter.stop();
+        }
+        updateIntakeAndIndexer();
+        return 0;
+    }
+
+    // Pressing the button that's already on turns the shooter off, and pressing the other one
+    // switches to its speed
+    private void pickShooterSpeed(double rpm, String name) {
+        if (shooterButtonRpm == rpm) {
+            shooterButtonRpm = 0;
+            shooterButtonName = "OFF";
+        } else {
+            shooterButtonRpm = rpm;
+            shooterButtonName = name;
+        }
+    }
+
+    // Left trigger runs the intake and indexer motor in, left bumper runs them in reverse,
+    // and the right bumper runs the indexer servos
+    protected void updateIntakeAndIndexer() {
+        int indexerDirection = updateIntakeFromButtons();
+        int servoDirection = 0;
+        if (controller1.getButton(GamepadKeys.Button.RIGHT_BUMPER)) {
+            servoDirection = 1;
+        }
+        transfer.run(indexerDirection, servoDirection);
+    }
+
+    // Sets the intake from the left trigger and left bumper, and returns which way the
+    // indexer motor should go with it (1 in, -1 reverse, 0 off)
+    private int updateIntakeFromButtons() {
+        boolean reverse = controller1.getButton(GamepadKeys.Button.LEFT_BUMPER);
+        boolean intaking = controller1.getTrigger(GamepadKeys.Trigger.LEFT_TRIGGER) > TRIGGER_PRESSED;
+
+        // Reverse wins if both are held, so a jam can be cleared without letting go of the trigger
+        if (reverse) {
+            intake.out();
+            return -1;
+        }
+        if (intaking) {
+            intake.in();
+            return 1;
+        }
+        intake.stop();
+        return 0;
+    }
+
+    // Shows the shooter mode. During auto shoot it also shows the aim and the distance.
+    protected void addShooterControlsTelemetry() {
+        if (autoShooting) {
+            telemetry.addData("Shooter", "AUTO (circle)");
+            addShooterTelemetry(true);
+            return;
+        }
+        telemetry.addData("Shooter", shooterButtonName);
+        telemetry.addData("Shooter RPM", "%.0f / %.0f", shooter.getRpm(), shooter.getTargetRpm());
+        telemetry.addData("Ready", shooter.isReady());
+        if (pinpoint == null) {
+            telemetry.addLine("No Pinpoint, so circle (auto shoot) is off");
+        } else {
+            telemetry.addData("Position (in)", "x %.1f  y %.1f", poseX, poseY);
         }
     }
 
@@ -279,8 +378,7 @@ public abstract class BaseTeleOp extends LinearOpMode {
         if (!shooting) {
             shooter.stop();
             transfer.stop();
-            haveAim = false;
-            aimRate = 0;
+            resetAim();
             return 0;
         }
 
@@ -324,6 +422,14 @@ public abstract class BaseTeleOp extends LinearOpMode {
         }
 
         return -Range.clip(turnCommand, -AIM_MAX_TURN, AIM_MAX_TURN);
+    }
+
+    // Forgets the last aim direction, so the next shot starts fresh
+    private void resetAim() {
+        haveAim = false;
+        aimRate = 0;
+        aimed = false;
+        aimErrorDeg = 0;
     }
 
     // Shows position, and the shooter numbers while shooting

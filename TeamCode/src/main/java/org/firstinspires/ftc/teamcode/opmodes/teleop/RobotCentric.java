@@ -1,15 +1,19 @@
 package org.firstinspires.ftc.teamcode.opmodes.teleop;
 
-import com.arcrobotics.ftclib.gamepad.GamepadKeys;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.util.DriveInputFilter;
 import org.firstinspires.ftc.teamcode.util.Timer;
 
-
+// Robot centric driving with the driver's controls (listed in BaseTeleOp, under Controls).
+// Pushing the left stick up drives toward the robot's front.
+// Auto shoot (circle) needs the Pinpoint to know where the robot is. If the Pinpoint ever stops
+// working at an event, change initHardware() to initHardware(false) below. Everything except
+// auto shoot keeps working without it.
 @TeleOp(name = "RobotCentric TeleOp", group = "TeleOp")
-public class RobotCentric extends BaseTeleOp{
+public class RobotCentric extends BaseTeleOp {
     private final DriveInputFilter smoother = new DriveInputFilter();
+
     @Override
     public void runOpMode() throws InterruptedException {
 
@@ -23,21 +27,22 @@ public class RobotCentric extends BaseTeleOp{
         Timer.start();
         smoother.reset();
         setStartPose();
+
         // start OpMode loop
         while (opModeIsActive()) {
 
             updateInputs();
 
-            // Hold the right bumper to aim, spin up, and shoot
-            boolean shooting = shootHeld();
+            // Hold circle for auto shoot
+            boolean autoShoot = autoShootHeld();
 
             //<editor-fold desc="Drivetrain">
             double ly = smoother.shape(controller1.getLeftY());
             double lx = smoother.shape(controller1.getLeftX());
-            double rx = smoother.shape(triggerTurn()); // turning is on the triggers
+            double rx = smoother.shape(controller1.getRightX());
 
-            // While shooting, the auto-aim does the turning, so the triggers are ignored
-            if (shooting) {
+            // During auto shoot the aim does the turning, so the right stick is ignored
+            if (autoShoot) {
                 rx = 0;
             }
 
@@ -46,9 +51,9 @@ public class RobotCentric extends BaseTeleOp{
             lx = smoother.out[1];
             rx = smoother.out[2];
 
-            // Aims, spins up, and feeds while shooting, and gives back the turn it wants
-            double aimTurn = updateShooter(shooting);
-            if (shooting) {
+            // Runs the shooter, intake, indexer and servos, and gives back the turn auto shoot wants
+            double aimTurn = updateShooterControls(autoShoot);
+            if (autoShoot) {
                 rx = aimTurn;
             }
 
@@ -67,15 +72,11 @@ public class RobotCentric extends BaseTeleOp{
                     backLeftPower / maxPower, backRightPower / maxPower);
             //</editor-fold>
 
-            updateIntake();
-
             //<editor-fold desc="Telemetry">
             addLoopTimeTelemetry();
-            addShooterTelemetry(shooting);
+            addShooterControlsTelemetry();
             telemetry.update();
             //</editor-fold>
         }
-
     }
-
 }

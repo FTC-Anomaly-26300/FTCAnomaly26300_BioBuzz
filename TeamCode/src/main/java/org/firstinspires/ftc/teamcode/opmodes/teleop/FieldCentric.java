@@ -5,10 +5,13 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.util.DriveInputFilter;
 import org.firstinspires.ftc.teamcode.util.Timer;
 
-
+// Field centric driving with the driver's controls (listed in BaseTeleOp, under Controls).
+// Pushing the left stick up always drives away from our drivers, whichever way the robot faces.
+// RobotCentric is the main TeleOp. This one is kept as an option.
 @TeleOp(name = "FieldCentric TeleOp", group = "TeleOp")
-public class FieldCentric extends BaseTeleOp{
+public class FieldCentric extends BaseTeleOp {
     private final DriveInputFilter smoother = new DriveInputFilter();
+
     @Override
     public void runOpMode() throws InterruptedException {
 
@@ -28,18 +31,18 @@ public class FieldCentric extends BaseTeleOp{
 
             updateInputs();
 
-            // Hold the right bumper to aim, spin up, and shoot
-            boolean shooting = shootHeld();
+            // Hold circle for auto shoot
+            boolean autoShoot = autoShootHeld();
 
             //<editor-fold desc="Drivetrain">
             // forward on the stick is away from our drivers, whichever way the robot faces
             double heading = poseHeading - driverForwardHeading();
             double ly = smoother.shape(controller1.getLeftY());
             double lx = smoother.shape(controller1.getLeftX());
-            double rx = smoother.shape(triggerTurn()); // turning is on the triggers
+            double rx = smoother.shape(controller1.getRightX());
 
-            // While shooting, the auto-aim does the turning, so the triggers are ignored
-            if (shooting) {
+            // During auto shoot the aim does the turning, so the right stick is ignored
+            if (autoShoot) {
                 rx = 0;
             }
 
@@ -55,9 +58,9 @@ public class FieldCentric extends BaseTeleOp{
             ly = fieldForward * cos - fieldRight * sin;
             lx = fieldForward * sin + fieldRight * cos;
 
-            // Aims, spins up, and feeds while shooting, and gives back the turn it wants
-            double aimTurn = updateShooter(shooting);
-            if (shooting) {
+            // Runs the shooter, intake, indexer and servos, and gives back the turn auto shoot wants
+            double aimTurn = updateShooterControls(autoShoot);
+            if (autoShoot) {
                 rx = aimTurn;
             }
 
@@ -76,18 +79,12 @@ public class FieldCentric extends BaseTeleOp{
                     backLeftPower / maxPower, backRightPower / maxPower);
             //</editor-fold>
 
-            updateIntake();
-
-
             //<editor-fold desc="Telemetry">
             addLoopTimeTelemetry();
             telemetry.addData("Heading (deg)", Math.toDegrees(heading));
-            addShooterTelemetry(shooting);
+            addShooterControlsTelemetry();
             telemetry.update();
             //</editor-fold>
-
         }
-
     }
-
 }

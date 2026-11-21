@@ -14,9 +14,9 @@ public class FieldConstants {
 
     // ===== Robot size =====
 
-    // TODO set these to your robot's real size in inches, bumper to bumper
-    public static final double ROBOT_LENGTH = 18.0; // front to back
-    public static final double ROBOT_WIDTH = 18.0;  // left to right
+    // The robot's outside size in inches, bumper to bumper, measured on the robot
+    public static final double ROBOT_LENGTH = 17.0; // front to back
+    public static final double ROBOT_WIDTH = 17.5;  // left to right
     public static final double HALF_LENGTH = ROBOT_LENGTH / 2.0;
     public static final double HALF_WIDTH = ROBOT_WIDTH / 2.0;
 

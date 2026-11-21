@@ -3,43 +3,51 @@ package org.firstinspires.ftc.teamcode.robot.subsystems;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 
-// Moves pollen from the intake up to the shooter. The transfer motor carries them,
-// and the gecko wheel servo gives the final push into the flywheel.
+// Moves POLLEN from the intake up to the shooter. The indexer motor carries it,
+// and the two indexer servos give the final push into the flywheel.
 public class Transfer {
 
-    // TODO tune these. Flip the sign if a part spins the wrong way.
-    private static final double TRANSFER_POWER = 1.0;
-    private static final double FEEDER_POWER = 1.0;
+    // Powers from the code the team tested on the robot
+    private static final double INDEXER_POWER = 1.0;
+    private static final double SERVO_POWER = 0.5;
 
     private final DcMotorEx motor;
-    private final CRServo feeder;
+    private final CRServo servo1, servo2;
 
     private double lastMotorPower = 0;
-    private double lastFeederPower = 0;
+    private double lastServoPower = 0;
 
-    public Transfer(DcMotorEx transferMotor, CRServo feederServo) {
-        motor = transferMotor;
-        feeder = feederServo;
+    public Transfer(DcMotorEx indexerMotor, CRServo indexerServo1, CRServo indexerServo2) {
+        motor = indexerMotor;
+        servo1 = indexerServo1;
+        servo2 = indexerServo2;
     }
 
-    // Sends pollen into the shooter
+    // Runs everything toward the shooter, used by the auto-aim when it's ready to shoot
     public void feed() {
-        set(TRANSFER_POWER, FEEDER_POWER);
+        set(INDEXER_POWER, SERVO_POWER);
     }
 
     public void stop() {
         set(0, 0);
     }
 
+    // Runs the indexer motor and the servos separately, for the driver's controls.
+    // For each one, 1 runs it toward the shooter, -1 runs it backward, and 0 stops it.
+    public void run(int indexerDirection, int servoDirection) {
+        set(indexerDirection * INDEXER_POWER, servoDirection * SERVO_POWER);
+    }
+
     // Only sends a command when the setting actually changes, like the intake
-    private void set(double motorPower, double feederPower) {
+    private void set(double motorPower, double servoPower) {
         if (motorPower != lastMotorPower) {
             motor.setPower(motorPower);
             lastMotorPower = motorPower;
         }
-        if (feederPower != lastFeederPower) {
-            feeder.setPower(feederPower);
-            lastFeederPower = feederPower;
+        if (servoPower != lastServoPower) {
+            servo1.setPower(servoPower);
+            servo2.setPower(servoPower);
+            lastServoPower = servoPower;
         }
     }
 }

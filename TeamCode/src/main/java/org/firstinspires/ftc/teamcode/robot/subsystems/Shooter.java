@@ -25,6 +25,15 @@ public class Shooter {
     private static final double I = P / 10;
     private static final double D = 0;
 
+    // The two set speeds the driver picks in TeleOp, square for a close shot and triangle for a
+    // middle one. Circle (auto shoot) uses the distance table below instead.
+    // The team's old code used 40% and 50% power. These are those powers times the motor's
+    // 5800 RPM free speed, as a starting point. Unlike power, a set RPM stays the same as the
+    // battery drains, so shots stay the same all match.
+    // TODO check both with ShooterTuner from the close and middle spots, and use what scores.
+    public static final double CLOSE_RPM = 2300;
+    public static final double MIDDLE_RPM = 2900;
+
     // How close to the target speed counts as ready to shoot, in RPM
     private static final double READY_TOLERANCE_RPM = 75;
 

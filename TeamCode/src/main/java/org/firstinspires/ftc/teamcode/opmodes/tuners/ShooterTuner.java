@@ -10,6 +10,7 @@ import org.firstinspires.ftc.teamcode.util.Timer;
 // Use this to fill in the RPM table in Shooter.
 // 1. Drive to a spot, stop, and note the distance on the Driver Station.
 // 2. Press Y to spin up, and change the speed with dpad up and down until shots score.
+//    Shoot with the normal buttons, left trigger runs the indexer and right bumper the servos.
 // 3. Write the distance and RPM down, then repeat at 4 or 5 distances from close to far.
 @TeleOp(name = "Shooter Tuner", group = "Test")
 public class ShooterTuner extends BaseTeleOp {
@@ -40,7 +41,7 @@ public class ShooterTuner extends BaseTeleOp {
             // Simple robot centric driving, no curve or smoothing
             double ly = controller1.getLeftY() * DRIVE_SCALE;
             double lx = controller1.getLeftX() * DRIVE_SCALE;
-            double rx = triggerTurn() * DRIVE_SCALE; // turning is on the triggers
+            double rx = controller1.getRightX() * DRIVE_SCALE;
             double frontLeftPower = ly + lx + rx;
             double frontRightPower = ly - lx - rx;
             double backLeftPower = ly - lx + rx;
@@ -68,15 +69,9 @@ public class ShooterTuner extends BaseTeleOp {
                 shooter.stop();
             }
 
-            // Hold A to feed a shot
-            if (controller1.getButton(GamepadKeys.Button.A)) {
-                transfer.feed();
-            } else {
-                transfer.stop();
-            }
-
-            // Left bumper and B run the intake, to load pollen
-            updateIntake();
+            // Same as in a match. Left trigger runs the intake and indexer, left bumper reverses
+            // them, and the right bumper runs the indexer servos to shoot.
+            updateIntakeAndIndexer();
 
             double distance = Math.hypot(targetX() - poseX, targetY() - poseY);
             telemetry.addData("Aiming at", targetName());
@@ -89,7 +84,7 @@ public class ShooterTuner extends BaseTeleOp {
             telemetry.addData("Test RPM", "%.0f", testRpm);
             telemetry.addData("Actual RPM", "%.0f", shooter.getRpm());
             telemetry.addData("Shooter", spinning);
-            telemetry.addLine("Y spin on/off, dpad up/down change RPM, hold A to shoot");
+            telemetry.addLine("Y spin on/off, dpad up/down change RPM, left trigger and right bumper to shoot");
             telemetry.update();
         }
     }
